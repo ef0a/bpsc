@@ -19,7 +19,7 @@ local DEFAULT_ORBIT_SPEED = 5
 local DEFAULT_ORBIT_HEIGHT = 15
 
 -- Limbs targeted to trigger multi-part damage hits (R6 & R15)
-local TARGET_LIMBS = { a
+local TARGET_LIMBS = {
     "HumanoidRootPart", "Torso", "Head",
     "Left Arm", "Right Arm", "Left Leg", "Right Leg", -- R6
     "UpperTorso", "LowerTorso", "LeftUpperArm", "RightUpperArm", 
