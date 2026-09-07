@@ -1,4 +1,4 @@
--- [[ SoulNoob Main Script - Modular Setup v1.21 ]] --
+-- [[ SoulNoob Main Script - Fixed Tie-Breaker Lock Engine v1.23 ]] --
 
 local MOB_FOLDERS = {
     workspace:WaitForChild("CurrentEnemies", 5),
@@ -22,7 +22,7 @@ local UIS = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
--- Module Registry & Dynamic HTTP Loader
+-- Module Registry
 local MODULE_URLS = {
     Orbit  = "https://raw.githubusercontent.com/ef0a/bpsc/refs/heads/main/orbit.luau",
     Aimbot = "https://raw.githubusercontent.com/ef0a/bpsc/refs/heads/main/aimbot.luau",
@@ -36,21 +36,23 @@ end
 -- State & Connections
 local _G = {
     HitboxEnabled = false, HitboxTargetMode = "Head", TPEnabled = false,
-    TargetCFrame = nil, Mode = "Normal", Size = 20, Transparency = 0.94, Bind = "J"
+    TargetCFrame = nil, Mode = "Normal", Size = 20, Transparency = 0.94, Bind = "J",
+    TargetPriority = "Mega Bosses" -- Options: "Mega Bosses", "Bosses", "Enemies", "Closest"
 }
 local Connections = {}
+local LockedTarget = nil -- Persistent Target Lock
 
--- Main ScreenGui & Frame Setup
+-- GUI Setup
 local ScreenGui = Instance.new("ScreenGui", PlayerGui)
-ScreenGui.Name = "SoulNoob_v121" ScreenGui.ResetOnSpawn = false ScreenGui.DisplayOrder = 999999999
+ScreenGui.Name = "SoulNoob_v123_Fixed" ScreenGui.ResetOnSpawn = false ScreenGui.DisplayOrder = 999999999
 
 local Main = Instance.new("Frame", ScreenGui)
-Main.Size = UDim2.new(0, 230, 0, 420) Main.Position = UDim2.new(0.05, 0, 0.2, 0)
+Main.Size = UDim2.new(0, 230, 0, 450) Main.Position = UDim2.new(0.05, 0, 0.2, 0)
 Main.BackgroundColor3 = Color3.fromRGB(25, 25, 25) Main.BorderSizePixel = 2 Main.BorderColor3 = Color3.fromRGB(0, 255, 150)
 Main.Active = true Main.Draggable = true
 
 local Title = Instance.new("TextLabel", Main)
-Title.Size = UDim2.new(1, -30, 0, 35) Title.Text = " SoulNoob v1.21" Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Size = UDim2.new(1, -30, 0, 35) Title.Text = " SoulNoob v1.23 Fixed" Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.BackgroundColor3 = Color3.fromRGB(40, 40, 40) Title.TextColor3 = Color3.new(1, 1, 1)
 
 local CloseBtn = Instance.new("TextButton", Main)
@@ -107,17 +109,24 @@ local function createTBox(parent, pos, placeholder, defaultText)
 end
 
 -- Main Controls
-local ModeBtn   = createBtn(MainTabFrame, 10, "Target Parts: HEAD", Color3.fromRGB(0, 150, 100))
-local NormalBtn = createBtn(MainTabFrame, 47, "Hitbox: Normal", Color3.fromRGB(0, 120, 200))
-local FreezeBtn = createBtn(MainTabFrame, 84, "Hitbox: Stun (Freeze)", Color3.fromRGB(150, 0, 0))
-local TPBtn     = createBtn(MainTabFrame, 121, "SET KILL ZONE: OFF", Color3.fromRGB(150, 0, 150))
-local SizeBox   = createTBox(MainTabFrame, Vector2.new(0.05, 165), "Hitbox Size", "Size: ".._G.Size)
-local TransBox  = createTBox(MainTabFrame, Vector2.new(0.53, 165), "Transparency", "Trans: ".._G.Transparency)
-local BindBox   = createTBox(MainTabFrame, Vector2.new(0.05, 200), "Bind", "Bind: ".._G.Bind)
-local OffBtn    = createBtn(MainTabFrame, 280, "RESET / ALL OFF", Color3.fromRGB(70, 70, 70))
+local PriorityBtn = createBtn(MainTabFrame, 10, "Priority: MEGA BOSSES", Color3.fromRGB(200, 0, 100))
+local ModeBtn     = createBtn(MainTabFrame, 47, "Target Parts: HEAD", Color3.fromRGB(0, 150, 100))
+local NormalBtn   = createBtn(MainTabFrame, 84, "Hitbox: Normal", Color3.fromRGB(0, 120, 200))
+local FreezeBtn   = createBtn(MainTabFrame, 121, "Hitbox: Stun (Freeze)", Color3.fromRGB(150, 0, 0))
+local TPBtn       = createBtn(MainTabFrame, 158, "SET KILL ZONE: OFF", Color3.fromRGB(150, 0, 150))
+local SizeBox     = createTBox(MainTabFrame, Vector2.new(0.05, 202), "Hitbox Size", "Size: ".._G.Size)
+local TransBox    = createTBox(MainTabFrame, Vector2.new(0.53, 202), "Transparency", "Trans: ".._G.Transparency)
+local BindBox     = createTBox(MainTabFrame, Vector2.new(0.05, 237), "Bind", "Bind: ".._G.Bind)
+local OffBtn      = createBtn(MainTabFrame, 310, "RESET / ALL OFF", Color3.fromRGB(70, 70, 70))
 
 -- Helper Functions
 local function getRoot() return LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") end
+
+local function isTargetAlive(model)
+    if not model or not model.Parent or not model:IsDescendantOf(workspace) then return false end
+    local hum = model:FindFirstChildOfClass("Humanoid")
+    return hum and hum.Health > 0
+end
 
 local function getAllMobs()
     local mobs = {}
@@ -131,17 +140,104 @@ local function getAllMobs()
     return mobs
 end
 
-local function getPrimaryTarget()
-    local myRoot = getRoot() if not myRoot then return nil end
-    local closest, shortestDist = nil, math.huge
-    for _, mob in ipairs(getAllMobs()) do
-        local hum, root = mob:FindFirstChildOfClass("Humanoid"), mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChildWhichIsA("BasePart")
-        if hum and hum.Health > 0 and root then
-            local dist = (myRoot.Position - root.Position).Magnitude
-            if dist < shortestDist then shortestDist, closest = dist, mob end
+local function getMobsFromFolder(folderName)
+    local found = {}
+    for _, folder in ipairs(MOB_FOLDERS) do
+        if folder and folder.Name == folderName then
+            for _, d in ipairs(folder:GetDescendants()) do
+                if d:IsA("Model") and d:FindFirstChildOfClass("Humanoid") then table.insert(found, d) end
+            end
         end
     end
-    return closest
+    return found
+end
+
+-- Deterministic Target Selector with Simultaneous Spawn Tie-Breakers
+local function getBestTargetFromList(mobList)
+    local myRoot = getRoot() if not myRoot or #mobList == 0 then return nil end
+    
+    local candidates = {}
+    for _, mob in ipairs(mobList) do
+        local hum, root = mob:FindFirstChildOfClass("Humanoid"), mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChildWhichIsA("BasePart")
+        if hum and hum.Health > 0 and root then
+            table.insert(candidates, {
+                model = mob,
+                hum = hum,
+                dist = (myRoot.Position - root.Position).Magnitude,
+                id = mob:GetDebugId() -- Unique deterministic Roblox identifier
+            })
+        end
+    end
+
+    if #candidates == 0 then return nil end
+
+    -- Sort Priority: 1. Distance, 2. Lowest Health, 3. Unique Instance ID (Tie-breaker for exact same frame/distance spawns)
+    table.sort(candidates, function(a, b)
+        if math.abs(a.dist - b.dist) > 0.1 then
+            return a.dist < b.dist
+        elseif a.hum.Health ~= b.hum.Health then
+            return a.hum.Health < b.hum.Health
+        else
+            return a.id < b.id
+        end
+    end)
+
+    return candidates[1].model
+end
+
+-- Target Folder Identification Helper
+local function getMobCategory(mob)
+    if not mob or not mob.Parent then return nil end
+    for _, folder in ipairs(MOB_FOLDERS) do
+        if folder and mob:IsDescendantOf(folder) then
+            return folder.Name
+        end
+    end
+    return nil
+end
+
+-- Persistent Priority Lock Engine
+local function getPrimaryTarget()
+    -- Determine Priority Order based on User Choice
+    local tiers = {}
+    if _G.TargetPriority == "Mega Bosses" then
+        tiers = {"CurrentMegaBosses", "CurrentBosses", "CurrentEnemies"}
+    elseif _G.TargetPriority == "Bosses" then
+        tiers = {"CurrentBosses", "CurrentEnemies", "CurrentMegaBosses"}
+    elseif _G.TargetPriority == "Enemies" then
+        tiers = {"CurrentEnemies", "CurrentMegaBosses", "CurrentBosses"}
+    else
+        tiers = {"ALL"}
+    end
+
+    -- Check if active lock is still alive and valid
+    local currentLockValid = isTargetAlive(LockedTarget)
+    local currentCategory = currentLockValid and getMobCategory(LockedTarget) or nil
+
+    if tiers[1] == "ALL" then
+        if currentLockValid then return LockedTarget end
+        LockedTarget = getBestTargetFromList(getAllMobs())
+        return LockedTarget
+    end
+
+    -- Process Priority Tiers
+    for _, folderName in ipairs(tiers) do
+        local mobsInFolder = getMobsFromFolder(folderName)
+        if #mobsInFolder > 0 then
+            -- If current locked target is ALREADY in this top available tier, STAY LOCKED
+            if currentLockValid and currentCategory == folderName then
+                return LockedTarget
+            end
+            -- Otherwise, pick the best target in this higher tier
+            LockedTarget = getBestTargetFromList(mobsInFolder)
+            return LockedTarget
+        end
+    end
+
+    -- Absolute Fallback
+    if currentLockValid then return LockedTarget end
+    LockedTarget = getBestTargetFromList(getAllMobs())
+    return LockedTarget
 end
 
 local function cleanModel(model)
@@ -156,6 +252,7 @@ end
 
 local function resetAll()
     _G.HitboxEnabled, _G.TPEnabled, _G.TargetCFrame = false, false, nil
+    LockedTarget = nil
     TPBtn.Text, TPBtn.BackgroundColor3 = "SET KILL ZONE: OFF", Color3.fromRGB(150, 0, 150)
     for _, enemy in ipairs(getAllMobs()) do cleanModel(enemy) end
 end
@@ -202,6 +299,27 @@ end
 
 -- Event Listeners & Button Handlers
 table.insert(Connections, UIS.InputBegan:Connect(function(i, p) if not p and i.KeyCode.Name == _G.Bind then toggleKillZone() end end))
+
+PriorityBtn.MouseButton1Click:Connect(function()
+    LockedTarget = nil -- Reset target lock on priority mode switch
+    if _G.TargetPriority == "Mega Bosses" then
+        _G.TargetPriority = "Bosses"
+        PriorityBtn.Text = "Priority: BOSSES"
+        PriorityBtn.BackgroundColor3 = Color3.fromRGB(200, 100, 0)
+    elseif _G.TargetPriority == "Bosses" then
+        _G.TargetPriority = "Enemies"
+        PriorityBtn.Text = "Priority: ENEMIES ONLY"
+        PriorityBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 200)
+    elseif _G.TargetPriority == "Enemies" then
+        _G.TargetPriority = "Closest"
+        PriorityBtn.Text = "Priority: CLOSEST (ALL)"
+        PriorityBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+    else
+        _G.TargetPriority = "Mega Bosses"
+        PriorityBtn.Text = "Priority: MEGA BOSSES"
+        PriorityBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 100)
+    end
+end)
 
 ModeBtn.MouseButton1Click:Connect(function()
     _G.HitboxTargetMode = (_G.HitboxTargetMode == "Head") and "All" or "Head"
