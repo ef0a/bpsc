@@ -1,10 +1,4 @@
--- [[ SoulNoob Main Script - Fixed Tie-Breaker Lock Engine v1.23 ]] --
-
-local MOB_FOLDERS = {
-    workspace:WaitForChild("CurrentEnemies", 5),
-    workspace:WaitForChild("CurrentBosses", 5),
-    workspace:WaitForChild("CurrentMegaBosses", 5),
-}
+-- [[ SoulNoob Main Script - Modular Priority Engine v1.25 ]] --
 
 local ALL_LIMBS = {
     "Torso", "Head", "Left Arm", "Right Arm", "Left Leg", "Right Leg",
@@ -22,16 +16,19 @@ local UIS = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
--- Module Registry
+-- Module Registry (Update Priority URL to your raw github link)
 local MODULE_URLS = {
-    Orbit  = "https://raw.githubusercontent.com/ef0a/bpsc/refs/heads/main/orbit.luau",
-    Aimbot = "https://raw.githubusercontent.com/ef0a/bpsc/refs/heads/main/aimbot.luau",
+    Priority = "https://raw.githubusercontent.com/ef0a/bpsc/refs/heads/main/priority.luau",
+    Orbit    = "https://raw.githubusercontent.com/ef0a/bpsc/refs/heads/main/orbit.luau",
+    Aimbot   = "https://raw.githubusercontent.com/ef0a/bpsc/refs/heads/main/aimbot.luau",
 }
 
 local Modules = {}
 for name, url in pairs(MODULE_URLS) do
     pcall(function() Modules[name] = loadstring(game:HttpGet(url))() end)
 end
+
+local PriorityMod = Modules.Priority
 
 -- State & Connections
 local _G = {
@@ -40,11 +37,10 @@ local _G = {
     TargetPriority = "Mega Bosses" -- Options: "Mega Bosses", "Bosses", "Enemies", "Closest"
 }
 local Connections = {}
-local LockedTarget = nil -- Persistent Target Lock
 
 -- GUI Setup
 local ScreenGui = Instance.new("ScreenGui", PlayerGui)
-ScreenGui.Name = "SoulNoob_v123_Fixed" ScreenGui.ResetOnSpawn = false ScreenGui.DisplayOrder = 999999999
+ScreenGui.Name = "SoulNoob_v125" ScreenGui.ResetOnSpawn = false ScreenGui.DisplayOrder = 999999999
 
 local Main = Instance.new("Frame", ScreenGui)
 Main.Size = UDim2.new(0, 230, 0, 450) Main.Position = UDim2.new(0.05, 0, 0.2, 0)
@@ -52,7 +48,7 @@ Main.BackgroundColor3 = Color3.fromRGB(25, 25, 25) Main.BorderSizePixel = 2 Main
 Main.Active = true Main.Draggable = true
 
 local Title = Instance.new("TextLabel", Main)
-Title.Size = UDim2.new(1, -30, 0, 35) Title.Text = " SoulNoob v1.23 Fixed" Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Size = UDim2.new(1, -30, 0, 35) Title.Text = " SoulNoob v1.25" Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.BackgroundColor3 = Color3.fromRGB(40, 40, 40) Title.TextColor3 = Color3.new(1, 1, 1)
 
 local CloseBtn = Instance.new("TextButton", Main)
@@ -122,122 +118,11 @@ local OffBtn      = createBtn(MainTabFrame, 310, "RESET / ALL OFF", Color3.fromR
 -- Helper Functions
 local function getRoot() return LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") end
 
-local function isTargetAlive(model)
-    if not model or not model.Parent or not model:IsDescendantOf(workspace) then return false end
-    local hum = model:FindFirstChildOfClass("Humanoid")
-    return hum and hum.Health > 0
-end
-
-local function getAllMobs()
-    local mobs = {}
-    for _, folder in ipairs(MOB_FOLDERS) do
-        if folder and folder:IsA("Instance") then
-            for _, d in ipairs(folder:GetDescendants()) do
-                if d:IsA("Model") and d:FindFirstChildOfClass("Humanoid") then table.insert(mobs, d) end
-            end
-        end
-    end
-    return mobs
-end
-
-local function getMobsFromFolder(folderName)
-    local found = {}
-    for _, folder in ipairs(MOB_FOLDERS) do
-        if folder and folder.Name == folderName then
-            for _, d in ipairs(folder:GetDescendants()) do
-                if d:IsA("Model") and d:FindFirstChildOfClass("Humanoid") then table.insert(found, d) end
-            end
-        end
-    end
-    return found
-end
-
--- Deterministic Target Selector with Simultaneous Spawn Tie-Breakers
-local function getBestTargetFromList(mobList)
-    local myRoot = getRoot() if not myRoot or #mobList == 0 then return nil end
-    
-    local candidates = {}
-    for _, mob in ipairs(mobList) do
-        local hum, root = mob:FindFirstChildOfClass("Humanoid"), mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChildWhichIsA("BasePart")
-        if hum and hum.Health > 0 and root then
-            table.insert(candidates, {
-                model = mob,
-                hum = hum,
-                dist = (myRoot.Position - root.Position).Magnitude,
-                id = mob:GetDebugId() -- Unique deterministic Roblox identifier
-            })
-        end
-    end
-
-    if #candidates == 0 then return nil end
-
-    -- Sort Priority: 1. Distance, 2. Lowest Health, 3. Unique Instance ID (Tie-breaker for exact same frame/distance spawns)
-    table.sort(candidates, function(a, b)
-        if math.abs(a.dist - b.dist) > 0.1 then
-            return a.dist < b.dist
-        elseif a.hum.Health ~= b.hum.Health then
-            return a.hum.Health < b.hum.Health
-        else
-            return a.id < b.id
-        end
-    end)
-
-    return candidates[1].model
-end
-
--- Target Folder Identification Helper
-local function getMobCategory(mob)
-    if not mob or not mob.Parent then return nil end
-    for _, folder in ipairs(MOB_FOLDERS) do
-        if folder and mob:IsDescendantOf(folder) then
-            return folder.Name
-        end
+local function getPrimaryTarget()
+    if PriorityMod and PriorityMod.GetPrimaryTarget then
+        return PriorityMod.GetPrimaryTarget(_G.TargetPriority, getRoot)
     end
     return nil
-end
-
--- Persistent Priority Lock Engine
-local function getPrimaryTarget()
-    -- Determine Priority Order based on User Choice
-    local tiers = {}
-    if _G.TargetPriority == "Mega Bosses" then
-        tiers = {"CurrentMegaBosses", "CurrentBosses", "CurrentEnemies"}
-    elseif _G.TargetPriority == "Bosses" then
-        tiers = {"CurrentBosses", "CurrentEnemies", "CurrentMegaBosses"}
-    elseif _G.TargetPriority == "Enemies" then
-        tiers = {"CurrentEnemies", "CurrentMegaBosses", "CurrentBosses"}
-    else
-        tiers = {"ALL"}
-    end
-
-    -- Check if active lock is still alive and valid
-    local currentLockValid = isTargetAlive(LockedTarget)
-    local currentCategory = currentLockValid and getMobCategory(LockedTarget) or nil
-
-    if tiers[1] == "ALL" then
-        if currentLockValid then return LockedTarget end
-        LockedTarget = getBestTargetFromList(getAllMobs())
-        return LockedTarget
-    end
-
-    -- Process Priority Tiers
-    for _, folderName in ipairs(tiers) do
-        local mobsInFolder = getMobsFromFolder(folderName)
-        if #mobsInFolder > 0 then
-            -- If current locked target is ALREADY in this top available tier, STAY LOCKED
-            if currentLockValid and currentCategory == folderName then
-                return LockedTarget
-            end
-            -- Otherwise, pick the best target in this higher tier
-            LockedTarget = getBestTargetFromList(mobsInFolder)
-            return LockedTarget
-        end
-    end
-
-    -- Absolute Fallback
-    if currentLockValid then return LockedTarget end
-    LockedTarget = getBestTargetFromList(getAllMobs())
-    return LockedTarget
 end
 
 local function cleanModel(model)
@@ -252,9 +137,11 @@ end
 
 local function resetAll()
     _G.HitboxEnabled, _G.TPEnabled, _G.TargetCFrame = false, false, nil
-    LockedTarget = nil
+    if PriorityMod and PriorityMod.ResetLock then PriorityMod.ResetLock() end
     TPBtn.Text, TPBtn.BackgroundColor3 = "SET KILL ZONE: OFF", Color3.fromRGB(150, 0, 150)
-    for _, enemy in ipairs(getAllMobs()) do cleanModel(enemy) end
+    
+    local allMobs = PriorityMod and PriorityMod.GetAllMobs and PriorityMod.GetAllMobs() or {}
+    for _, enemy in ipairs(allMobs) do cleanModel(enemy) end
 end
 
 local function toggleKillZone()
@@ -301,7 +188,7 @@ end
 table.insert(Connections, UIS.InputBegan:Connect(function(i, p) if not p and i.KeyCode.Name == _G.Bind then toggleKillZone() end end))
 
 PriorityBtn.MouseButton1Click:Connect(function()
-    LockedTarget = nil -- Reset target lock on priority mode switch
+    if PriorityMod and PriorityMod.ResetLock then PriorityMod.ResetLock() end
     if _G.TargetPriority == "Mega Bosses" then
         _G.TargetPriority = "Bosses"
         PriorityBtn.Text = "Priority: BOSSES"
@@ -325,7 +212,9 @@ ModeBtn.MouseButton1Click:Connect(function()
     _G.HitboxTargetMode = (_G.HitboxTargetMode == "Head") and "All" or "Head"
     ModeBtn.Text = "Target Parts: " .. _G.HitboxTargetMode:upper()
     ModeBtn.BackgroundColor3 = (_G.HitboxTargetMode == "All") and Color3.fromRGB(180, 100, 0) or Color3.fromRGB(0, 150, 100)
-    if _G.HitboxEnabled then for _, enemy in ipairs(getAllMobs()) do cleanModel(enemy) end end
+    
+    local allMobs = PriorityMod and PriorityMod.GetAllMobs and PriorityMod.GetAllMobs() or {}
+    if _G.HitboxEnabled then for _, enemy in ipairs(allMobs) do cleanModel(enemy) end end
 end)
 
 TPBtn.MouseButton1Click:Connect(toggleKillZone)
@@ -352,7 +241,8 @@ end)
 -- Dual Engine Loops
 table.insert(Connections, RunService.Heartbeat:Connect(function()
     pcall(function()
-        for _, enemy in ipairs(getAllMobs()) do applyEffects(enemy) end
+        local allMobs = PriorityMod and PriorityMod.GetAllMobs and PriorityMod.GetAllMobs() or {}
+        for _, enemy in ipairs(allMobs) do applyEffects(enemy) end
         for _, step in ipairs(HeartbeatSteps) do step() end
     end)
 end))
