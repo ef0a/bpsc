@@ -1,15 +1,10 @@
--- [[ SoulNoob Main Script - Modular Setup ]] --
+-- [[ SoulNoob Main Script - Modular Setup v1.21 ]] --
 
 local MOB_FOLDERS = {
     workspace:WaitForChild("CurrentEnemies", 5),
     workspace:WaitForChild("CurrentBosses", 5),
     workspace:WaitForChild("CurrentMegaBosses", 5),
 }
-
-local HITBOX_SIZE = 20
-local HITBOX_TRANSPARENCY = 0.94
-local KILL_ZONE_DISTANCE = -8                
-local DEFAULT_BIND = "J"                     
 
 local ALL_LIMBS = {
     "Torso", "Head", "Left Arm", "Right Arm", "Left Leg", "Right Leg",
@@ -27,136 +22,109 @@ local UIS = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
--- Load External Orbit Module
-local ORBIT_URL = "https://raw.githubusercontent.com/ef0a/bpsc/refs/heads/main/orbit.luau"
-local OrbitModule = loadstring(game:HttpGet(ORBIT_URL))()
-
--- State
-local _G = {
-    HitboxEnabled = false,
-    HitboxTargetMode = "Head",
-    TPEnabled = false,
-    TargetCFrame = nil,
-    Mode = "Normal", 
-    Size = HITBOX_SIZE,
-    Transparency = HITBOX_TRANSPARENCY,
-    Bind = DEFAULT_BIND:upper()
+-- Module Registry & Dynamic HTTP Loader
+local MODULE_URLS = {
+    Orbit  = "https://raw.githubusercontent.com/ef0a/bpsc/refs/heads/main/orbit.luau",
+    Aimbot = "https://raw.githubusercontent.com/ef0a/bpsc/refs/heads/main/aimbot.luau",
 }
 
+local Modules = {}
+for name, url in pairs(MODULE_URLS) do
+    pcall(function() Modules[name] = loadstring(game:HttpGet(url))() end)
+end
+
+-- State & Connections
+local _G = {
+    HitboxEnabled = false, HitboxTargetMode = "Head", TPEnabled = false,
+    TargetCFrame = nil, Mode = "Normal", Size = 20, Transparency = 0.94, Bind = "J"
+}
 local Connections = {}
 
--- UI Build
+-- Main ScreenGui & Frame Setup
 local ScreenGui = Instance.new("ScreenGui", PlayerGui)
-ScreenGui.Name = "SoulNoob_Main"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.DisplayOrder = 999999999 
+ScreenGui.Name = "SoulNoob_v121" ScreenGui.ResetOnSpawn = false ScreenGui.DisplayOrder = 999999999
 
 local Main = Instance.new("Frame", ScreenGui)
-Main.Size = UDim2.new(0, 230, 0, 420)
-Main.Position = UDim2.new(0.05, 0, 0.2, 0)
-Main.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-Main.BorderSizePixel = 2
-Main.BorderColor3 = Color3.fromRGB(0, 255, 150)
-Main.Active = true
-Main.Draggable = true
+Main.Size = UDim2.new(0, 230, 0, 420) Main.Position = UDim2.new(0.05, 0, 0.2, 0)
+Main.BackgroundColor3 = Color3.fromRGB(25, 25, 25) Main.BorderSizePixel = 2 Main.BorderColor3 = Color3.fromRGB(0, 255, 150)
+Main.Active = true Main.Draggable = true
 
 local Title = Instance.new("TextLabel", Main)
-Title.Size = UDim2.new(1, -30, 0, 35)
-Title.Text = " SoulNoob v1.18"
-Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-Title.TextColor3 = Color3.new(1, 1, 1)
+Title.Size = UDim2.new(1, -30, 0, 35) Title.Text = " SoulNoob v1.21" Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.BackgroundColor3 = Color3.fromRGB(40, 40, 40) Title.TextColor3 = Color3.new(1, 1, 1)
 
 local CloseBtn = Instance.new("TextButton", Main)
-CloseBtn.Size = UDim2.new(0, 30, 0, 35)
-CloseBtn.Position = UDim2.new(1, -30, 0, 0)
-CloseBtn.Text = "X"
-CloseBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
-CloseBtn.TextColor3 = Color3.new(1, 1, 1)
-CloseBtn.Font = Enum.Font.SourceSansBold
-CloseBtn.BorderSizePixel = 0
+CloseBtn.Size = UDim2.new(0, 30, 0, 35) CloseBtn.Position = UDim2.new(1, -30, 0, 0)
+CloseBtn.Text = "X" CloseBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40) CloseBtn.TextColor3 = Color3.new(1, 1, 1)
+CloseBtn.Font = Enum.Font.SourceSansBold CloseBtn.BorderSizePixel = 0
 
--- Tabs
+-- Dynamic Tab System
 local TabBar = Instance.new("Frame", Main)
-TabBar.Size = UDim2.new(1, 0, 0, 30)
-TabBar.Position = UDim2.new(0, 0, 0, 35)
-TabBar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+TabBar.Size = UDim2.new(1, 0, 0, 30) TabBar.Position = UDim2.new(0, 0, 0, 35) TabBar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 
-local TabMainBtn = Instance.new("TextButton", TabBar)
-TabMainBtn.Size = UDim2.new(0.5, 0, 1, 0)
-TabMainBtn.Text = "Main"
-TabMainBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 150)
-TabMainBtn.TextColor3 = Color3.fromRGB(20, 20, 20)
-TabMainBtn.Font = Enum.Font.SourceSansBold
+local TabFrames, TabButtons = {}, {}
+local function createTab(name, w, pos)
+    local btn = Instance.new("TextButton", TabBar)
+    btn.Size = UDim2.new(w, 0, 1, 0) btn.Position = UDim2.new(pos, 0, 0, 0) btn.Text = name
+    btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50) btn.TextColor3 = Color3.new(1, 1, 1) btn.Font = Enum.Font.SourceSansBold
+    
+    local frame = Instance.new("Frame", Main)
+    frame.Size = UDim2.new(1, 0, 1, -65) frame.Position = UDim2.new(0, 0, 0, 65) frame.BackgroundTransparency = 1 frame.Visible = false
+    
+    TabButtons[name], TabFrames[name] = btn, frame
+    btn.MouseButton1Click:Connect(function()
+        for k, f in pairs(TabFrames) do f.Visible = (k == name) end
+        for k, b in pairs(TabButtons) do
+            b.BackgroundColor3 = (k == name) and Color3.fromRGB(0, 255, 150) or Color3.fromRGB(50, 50, 50)
+            b.TextColor3 = (k == name) and Color3.fromRGB(20, 20, 20) or Color3.new(1, 1, 1)
+        end
+    end)
+    return frame
+end
 
-local TabOrbitBtn = Instance.new("TextButton", TabBar)
-TabOrbitBtn.Size = UDim2.new(0.5, 0, 1, 0)
-TabOrbitBtn.Position = UDim2.new(0.5, 0, 0, 0)
-TabOrbitBtn.Text = "Orbit"
-TabOrbitBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-TabOrbitBtn.TextColor3 = Color3.new(1, 1, 1)
-TabOrbitBtn.Font = Enum.Font.SourceSansBold
+local MainTabFrame  = createTab("Main",  0.333, 0)
+local OrbitTabFrame = createTab("Orbit", 0.333, 0.333)
+local ABTabFrame    = createTab("AB",    0.334, 0.666)
+TabFrames["Main"].Visible = true
+TabButtons["Main"].BackgroundColor3 = Color3.fromRGB(0, 255, 150)
+TabButtons["Main"].TextColor3 = Color3.fromRGB(20, 20, 20)
 
-local MainTabFrame = Instance.new("Frame", Main)
-MainTabFrame.Size = UDim2.new(1, 0, 1, -65)
-MainTabFrame.Position = UDim2.new(0, 0, 0, 65)
-MainTabFrame.BackgroundTransparency = 1
-
-local OrbitTabFrame = Instance.new("Frame", Main)
-OrbitTabFrame.Size = UDim2.new(1, 0, 1, -65)
-OrbitTabFrame.Position = UDim2.new(0, 0, 0, 65)
-OrbitTabFrame.BackgroundTransparency = 1
-OrbitTabFrame.Visible = false
-
+-- UI Builders
 local function createBtn(parent, pos, text, color)
     local b = Instance.new("TextButton", parent)
-    b.Size = UDim2.new(0.9, 0, 0, 32)
-    b.Position = UDim2.new(0.05, 0, 0, pos)
-    b.BackgroundColor3 = color
-    b.Text = text
-    b.TextColor3 = Color3.new(1, 1, 1)
-    b.Font = Enum.Font.SourceSansBold
-    b.BorderSizePixel = 0
+    b.Size = UDim2.new(0.9, 0, 0, 32) b.Position = UDim2.new(0.05, 0, 0, pos)
+    b.BackgroundColor3 = color b.Text = text b.TextColor3 = Color3.new(1, 1, 1)
+    b.Font = Enum.Font.SourceSansBold b.BorderSizePixel = 0
     return b
 end
 
 local function createTBox(parent, pos, placeholder, defaultText)
     local t = Instance.new("TextBox", parent)
-    t.Size = UDim2.new(0.42, 0, 0, 28)
-    t.Position = UDim2.new(pos.X, 0, 0, pos.Y)
-    t.PlaceholderText = placeholder
-    t.Text = defaultText
-    t.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    t.TextColor3 = Color3.new(1, 1, 1)
-    t.ClearTextOnFocus = false
+    t.Size = UDim2.new(0.42, 0, 0, 28) t.Position = UDim2.new(pos.X, 0, 0, pos.Y)
+    t.PlaceholderText = placeholder t.Text = defaultText
+    t.BackgroundColor3 = Color3.fromRGB(50, 50, 50) t.TextColor3 = Color3.new(1, 1, 1) t.ClearTextOnFocus = false
     return t
 end
 
--- Controls
-local ModeBtn = createBtn(MainTabFrame, 10, "Target Parts: HEAD", Color3.fromRGB(0, 150, 100))
+-- Main Controls
+local ModeBtn   = createBtn(MainTabFrame, 10, "Target Parts: HEAD", Color3.fromRGB(0, 150, 100))
 local NormalBtn = createBtn(MainTabFrame, 47, "Hitbox: Normal", Color3.fromRGB(0, 120, 200))
 local FreezeBtn = createBtn(MainTabFrame, 84, "Hitbox: Stun (Freeze)", Color3.fromRGB(150, 0, 0))
-local TPBtn = createBtn(MainTabFrame, 121, "SET KILL ZONE: OFF", Color3.fromRGB(150, 0, 150))
-
-local SizeBox = createTBox(MainTabFrame, Vector2.new(0.05, 165), "Hitbox Size", "Size: ".._G.Size)
-local TransBox = createTBox(MainTabFrame, Vector2.new(0.53, 165), "Transparency", "Trans: ".._G.Transparency)
-local BindBox = createTBox(MainTabFrame, Vector2.new(0.05, 200), "Bind", "Bind: ".._G.Bind)
-
-local OffBtn = createBtn(MainTabFrame, 280, "RESET / ALL OFF", Color3.fromRGB(70, 70, 70))
+local TPBtn     = createBtn(MainTabFrame, 121, "SET KILL ZONE: OFF", Color3.fromRGB(150, 0, 150))
+local SizeBox   = createTBox(MainTabFrame, Vector2.new(0.05, 165), "Hitbox Size", "Size: ".._G.Size)
+local TransBox  = createTBox(MainTabFrame, Vector2.new(0.53, 165), "Transparency", "Trans: ".._G.Transparency)
+local BindBox   = createTBox(MainTabFrame, Vector2.new(0.05, 200), "Bind", "Bind: ".._G.Bind)
+local OffBtn    = createBtn(MainTabFrame, 280, "RESET / ALL OFF", Color3.fromRGB(70, 70, 70))
 
 -- Helper Functions
-local function getRoot()
-    return LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-end
+local function getRoot() return LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") end
 
 local function getAllMobs()
     local mobs = {}
     for _, folder in ipairs(MOB_FOLDERS) do
         if folder and folder:IsA("Instance") then
-            for _, descendant in ipairs(folder:GetDescendants()) do
-                if descendant:IsA("Model") and descendant:FindFirstChildOfClass("Humanoid") then
-                    table.insert(mobs, descendant)
-                end
+            for _, d in ipairs(folder:GetDescendants()) do
+                if d:IsA("Model") and d:FindFirstChildOfClass("Humanoid") then table.insert(mobs, d) end
             end
         end
     end
@@ -164,48 +132,113 @@ local function getAllMobs()
 end
 
 local function getPrimaryTarget()
-    local myRoot = getRoot()
-    if not myRoot then return nil end
+    local myRoot = getRoot() if not myRoot then return nil end
     local closest, shortestDist = nil, math.huge
     for _, mob in ipairs(getAllMobs()) do
-        local hum = mob:FindFirstChildOfClass("Humanoid")
-        local root = mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChildWhichIsA("BasePart")
+        local hum, root = mob:FindFirstChildOfClass("Humanoid"), mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChildWhichIsA("BasePart")
         if hum and hum.Health > 0 and root then
             local dist = (myRoot.Position - root.Position).Magnitude
-            if dist < shortestDist then
-                shortestDist = dist
-                closest = mob
-            end
+            if dist < shortestDist then shortestDist, closest = dist, mob end
         end
     end
     return closest
 end
 
--- Initialize External Orbit Component
-local orbitStep = OrbitModule.Init(OrbitTabFrame, createBtn, createTBox, getRoot, getPrimaryTarget)
+local function cleanModel(model)
+    if not model then return end
+    for _, p in pairs(model:GetChildren()) do
+        if p:IsA("BasePart") then
+            if OriginalSizes[p] then p.Size = OriginalSizes[p] end
+            p.Transparency, p.Material, p.CanCollide, p.CanTouch, p.Anchored, p.Massless = 0, Enum.Material.Plastic, true, true, false, false
+        end
+    end
+end
 
--- Tab Handlers
-TabMainBtn.MouseButton1Click:Connect(function()
-    MainTabFrame.Visible = true OrbitTabFrame.Visible = false
-    TabMainBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 150) TabMainBtn.TextColor3 = Color3.fromRGB(20, 20, 20)
-    TabOrbitBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50) TabOrbitBtn.TextColor3 = Color3.new(1, 1, 1)
+local function resetAll()
+    _G.HitboxEnabled, _G.TPEnabled, _G.TargetCFrame = false, false, nil
+    TPBtn.Text, TPBtn.BackgroundColor3 = "SET KILL ZONE: OFF", Color3.fromRGB(150, 0, 150)
+    for _, enemy in ipairs(getAllMobs()) do cleanModel(enemy) end
+end
+
+local function toggleKillZone()
+    local myRoot = getRoot() if not myRoot then return end
+    _G.TPEnabled = not _G.TPEnabled
+    if _G.TPEnabled then
+        _G.TargetCFrame = myRoot.CFrame * CFrame.new(0, 0, -8)
+        TPBtn.Text, TPBtn.BackgroundColor3 = "KILL ZONE: LOCKED", Color3.fromRGB(255, 0, 255)
+    else
+        _G.TargetCFrame, TPBtn.Text, TPBtn.BackgroundColor3 = nil, "SET KILL ZONE: OFF", Color3.fromRGB(150, 0, 150)
+    end
+end
+
+local function applyEffects(model)
+    if not model or model == LocalPlayer.Character then return end
+    local hum = model:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then return end
+    local root = model:FindFirstChild("HumanoidRootPart")
+
+    if _G.HitboxEnabled then
+        local partsToExpand = {}
+        if _G.HitboxTargetMode == "Head" then
+            local head = model:FindFirstChild("Head") if head then table.insert(partsToExpand, head) end
+        else
+            for _, limbName in ipairs(ALL_LIMBS) do
+                local p = model:FindFirstChild(limbName) if p and p:IsA("BasePart") then table.insert(partsToExpand, p) end
+            end
+        end
+
+        for _, p in ipairs(partsToExpand) do
+            if not OriginalSizes[p] then OriginalSizes[p] = p.Size end
+            p.Size, p.Transparency, p.Material, p.Massless, p.CanTouch = Vector3.new(_G.Size, _G.Size, _G.Size), _G.Transparency, Enum.Material.Neon, true, true
+            p.Color = (_G.Mode == "Freeze") and Color3.new(1, 0, 0) or Color3.new(1, 1, 0)
+            p.Anchored, p.CanCollide = (_G.Mode == "Freeze"), false
+        end
+    end
+
+    if _G.TPEnabled and _G.TargetCFrame and root then
+        root.CFrame, root.Velocity, root.RotVelocity = _G.TargetCFrame, Vector3.zero, Vector3.zero
+    end
+end
+
+-- Event Listeners & Button Handlers
+table.insert(Connections, UIS.InputBegan:Connect(function(i, p) if not p and i.KeyCode.Name == _G.Bind then toggleKillZone() end end))
+
+ModeBtn.MouseButton1Click:Connect(function()
+    _G.HitboxTargetMode = (_G.HitboxTargetMode == "Head") and "All" or "Head"
+    ModeBtn.Text = "Target Parts: " .. _G.HitboxTargetMode:upper()
+    ModeBtn.BackgroundColor3 = (_G.HitboxTargetMode == "All") and Color3.fromRGB(180, 100, 0) or Color3.fromRGB(0, 150, 100)
+    if _G.HitboxEnabled then for _, enemy in ipairs(getAllMobs()) do cleanModel(enemy) end end
 end)
 
-TabOrbitBtn.MouseButton1Click:Connect(function()
-    MainTabFrame.Visible = false OrbitTabFrame.Visible = true
-    TabOrbitBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 150) TabOrbitBtn.TextColor3 = Color3.fromRGB(20, 20, 20)
-    TabMainBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50) TabMainBtn.TextColor3 = Color3.new(1, 1, 1)
-end)
+TPBtn.MouseButton1Click:Connect(toggleKillZone)
+NormalBtn.MouseButton1Click:Connect(function() _G.HitboxEnabled, _G.Mode = true, "Normal" end)
+FreezeBtn.MouseButton1Click:Connect(function() _G.HitboxEnabled, _G.Mode = true, "Freeze" end)
+OffBtn.MouseButton1Click:Connect(resetAll)
+
+SizeBox.FocusLost:Connect(function() local v = tonumber(SizeBox.Text:match("%d+%.?%d*")) if v then _G.Size, SizeBox.Text = v, "Size: "..v end end)
+TransBox.FocusLost:Connect(function() local v = tonumber(TransBox.Text:match("%d+%.?%d*")) if v then _G.Transparency, TransBox.Text = math.clamp(v, 0, 1), "Trans: "..v end end)
+BindBox.FocusLost:Connect(function() local k = BindBox.Text:gsub("Bind: ", ""):upper() if #k == 1 then _G.Bind, BindBox.Text = k, "Bind: "..k end end)
+
+-- Init External Modules
+local HeartbeatSteps, RenderSteppedSteps = {}, {}
+if Modules.Orbit and Modules.Orbit.Init then table.insert(HeartbeatSteps, Modules.Orbit.Init(OrbitTabFrame, createBtn, createTBox, getRoot, getPrimaryTarget)) end
+if Modules.Aimbot and Modules.Aimbot.Init then table.insert(RenderSteppedSteps, Modules.Aimbot.Init(ABTabFrame, createBtn, createTBox, getRoot, getPrimaryTarget)) end
 
 CloseBtn.MouseButton1Click:Connect(function()
-    OrbitModule.Cleanup()
+    resetAll()
+    for _, mod in pairs(Modules) do if mod.Cleanup then mod.Cleanup() end end
     for _, conn in ipairs(Connections) do conn:Disconnect() end
     ScreenGui:Destroy()
 end)
 
--- Main Loop
+-- Dual Engine Loops
 table.insert(Connections, RunService.Heartbeat:Connect(function()
     pcall(function()
-        if orbitStep then orbitStep() end
+        for _, enemy in ipairs(getAllMobs()) do applyEffects(enemy) end
+        for _, step in ipairs(HeartbeatSteps) do step() end
     end)
+end))
+
+table.insert(Connections, RunService.RenderStepped:Connect(function()
+    pcall(function() for _, step in ipairs(RenderSteppedSteps) do step() end end)
 end))
