@@ -1,9 +1,10 @@
--- [[ SoulNoob AutoClicker Module - v1.0 ]] --
+-- [[ SoulNoob AutoClicker Module - v1.1 ]] --
 
 local AutoClickerModule = {}
 
 -- Services
 local VirtualInputManager = game:GetService("VirtualInputManager")
+local UIS = game:GetService("UserInputService")
 
 -- Module State
 local State = {
@@ -13,6 +14,7 @@ local State = {
     M1Delay = 0.1,
     ZDelay = 1.0,
     XDelay = 1.0,
+    M1Bind = "="
 }
 
 local LastPressed = {
@@ -20,6 +22,8 @@ local LastPressed = {
     Z = 0,
     X = 0,
 }
+
+local Connections = {}
 
 -- Input Helpers
 local function clickM1()
@@ -47,21 +51,24 @@ end
 -- Module Init
 function AutoClickerModule.Init(tabFrame, createBtn, createTBox)
     -- UI Elements Setup
-    local M1Btn = createBtn(tabFrame, 10, "Auto Click (M1): OFF", Color3.fromRGB(150, 0, 0))
-    local M1Box = createTBox(tabFrame, Vector2.new(0.05, 47), "M1 Delay (s)", "M1 Delay: " .. State.M1Delay)
+    local M1Btn  = createBtn(tabFrame, 10, "Auto Click (M1): OFF", Color3.fromRGB(150, 0, 0))
+    local M1Box  = createTBox(tabFrame, Vector2.new(0.05, 47), "M1 Delay (s)", "M1 Delay: " .. State.M1Delay)
+    local BindBox = createTBox(tabFrame, Vector2.new(0.53, 47), "M1 Bind", "Bind: " .. State.M1Bind)
 
-    local ZBtn  = createBtn(tabFrame, 84, "Auto Skill (Z): OFF", Color3.fromRGB(150, 0, 0))
-    local ZBox  = createTBox(tabFrame, Vector2.new(0.05, 121), "Z Delay (s)", "Z Delay: " .. State.ZDelay)
+    local ZBtn   = createBtn(tabFrame, 84, "Auto Skill (Z): OFF", Color3.fromRGB(150, 0, 0))
+    local ZBox   = createTBox(tabFrame, Vector2.new(0.05, 121), "Z Delay (s)", "Z Delay: " .. State.ZDelay)
 
-    local XBtn  = createBtn(tabFrame, 158, "Auto Skill (X): OFF", Color3.fromRGB(150, 0, 0))
-    local XBox  = createTBox(tabFrame, Vector2.new(0.05, 195), "X Delay (s)", "X Delay: " .. State.XDelay)
+    local XBtn   = createBtn(tabFrame, 158, "Auto Skill (X): OFF", Color3.fromRGB(150, 0, 0))
+    local XBox   = createTBox(tabFrame, Vector2.new(0.05, 195), "X Delay (s)", "X Delay: " .. State.XDelay)
 
-    -- Button Connections
-    M1Btn.MouseButton1Click:Connect(function()
+    local function toggleM1()
         State.M1Enabled = not State.M1Enabled
         M1Btn.Text = "Auto Click (M1): " .. (State.M1Enabled and "ON" or "OFF")
         M1Btn.BackgroundColor3 = State.M1Enabled and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(150, 0, 0)
-    end)
+    end
+
+    -- Button Connections
+    M1Btn.MouseButton1Click:Connect(toggleM1)
 
     ZBtn.MouseButton1Click:Connect(function()
         State.ZEnabled = not State.ZEnabled
@@ -75,10 +82,29 @@ function AutoClickerModule.Init(tabFrame, createBtn, createTBox)
         XBtn.BackgroundColor3 = State.XEnabled and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(150, 0, 0)
     end)
 
+    -- Keybind Listener
+    table.insert(Connections, UIS.InputBegan:Connect(function(input, processed)
+        if processed then return end
+        local keyName = input.KeyCode.Name
+        if input.KeyCode == Enum.KeyCode.Equals then keyName = "=" end
+        
+        if keyName:upper() == State.M1Bind:upper() then
+            toggleM1()
+        end
+    end))
+
     -- TextBox Connections
     M1Box.FocusLost:Connect(function()
         local val = tonumber(M1Box.Text:match("%d+%.?%d*"))
         if val then State.M1Delay, M1Box.Text = math.max(0.01, val), "M1 Delay: " .. math.max(0.01, val) end
+    end)
+
+    BindBox.FocusLost:Connect(function()
+        local k = BindBox.Text:gsub("Bind: ", ""):gsub("%s+", "")
+        if #k >= 1 then 
+            State.M1Bind = k:sub(1,1)
+            BindBox.Text = "Bind: " .. State.M1Bind 
+        end
     end)
 
     ZBox.FocusLost:Connect(function()
@@ -116,6 +142,7 @@ function AutoClickerModule.Cleanup()
     State.M1Enabled = false
     State.ZEnabled = false
     State.XEnabled = false
+    for _, conn in ipairs(Connections) do conn:Disconnect() end
 end
 
 return AutoClickerModule
