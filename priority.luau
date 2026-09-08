@@ -1,4 +1,4 @@
--- [[ SoulNoob Priority System Module - v1.25 ]] --
+-- [[ SoulNoob Priority System Module - v1.31 ]] --
 
 local PriorityModule = {}
 
@@ -10,26 +10,42 @@ PriorityModule.MOB_FOLDERS = {
 }
 
 -- ============================================================================
--- EASY CONFIGURATION: INTERNAL NAME PRIORITIES
--- Add exact model names in order of priority (1 = Highest Priority)
+-- EASY CONFIG: MAP TARGET PATHS
+-- Simply paste full workspace paths here as standard strings!
 -- ============================================================================
+PriorityModule.MAP_TARGETS = {
+    "workspace.Map.SpringWrathCastle.HealthDoor",
+    -- "workspace.Map.Zone1.WoodenDoor",
+    -- "workspace.Map.Dungeon.BossGate",
+}
+-- ============================================================================
+
+-- Active Toggle State for Map Targets
+PriorityModule.ActiveMapTargets = {}
+
+-- Internal Name Priorities
 PriorityModule.INTERNAL_PRIORITIES = {
-    CurrentMegaBosses = {
-        -- "MegaBossName1",
-        -- "MegaBossName2",
-    },
+    CurrentMegaBosses = {},
     CurrentBosses = {
         "Dezadon", -- Rank 1
         "Arcane",  -- Rank 2
     },
-    CurrentEnemies = {
-        -- "EnemyName1",
-        -- "EnemyName2",
-    }
+    CurrentEnemies = {}
 }
--- ============================================================================
 
 local LockedTarget = nil
+
+-- Path Resolver (Parses path strings like "workspace.Map.SpringWrathCastle.HealthDoor")
+local function resolvePath(pathStr)
+    if not pathStr or pathStr == "" then return nil end
+    local cleanPath = pathStr:gsub("^workspace%.", ""):gsub("^game%.Workspace%.", "")
+    local current = workspace
+    for part in cleanPath:gmatch("[^%.]+") do
+        if not current then return nil end
+        current = current:FindFirstChild(part)
+    end
+    return current
+end
 
 local function isTargetAlive(model)
     if not model or not model.Parent or not model:IsDescendantOf(workspace) then return false end
@@ -39,12 +55,22 @@ end
 
 local function getAllMobs()
     local mobs = {}
+    -- Standard Mobs
     for _, folder in ipairs(PriorityModule.MOB_FOLDERS) do
         if folder and folder:IsA("Instance") then
             for _, d in ipairs(folder:GetDescendants()) do
                 if d:IsA("Model") and d:FindFirstChildOfClass("Humanoid") then 
                     table.insert(mobs, d) 
                 end
+            end
+        end
+    end
+    -- Active Map Targets
+    for pathStr, enabled in pairs(PriorityModule.ActiveMapTargets) do
+        if enabled then
+            local model = resolvePath(pathStr)
+            if model and model:IsA("Model") and model:FindFirstChildOfClass("Humanoid") then
+                table.insert(mobs, model)
             end
         end
     end
@@ -95,7 +121,6 @@ local function getBestTargetFromList(mobList, folderName, getRootFunc)
 
     if #candidates == 0 then return nil end
 
-    -- Deterministic Sort: Rank > Distance > Health > Debug ID
     table.sort(candidates, function(a, b)
         if a.rank ~= b.rank then
             return a.rank < b.rank
@@ -130,7 +155,25 @@ function PriorityModule.GetAllMobs()
     return getAllMobs()
 end
 
+function PriorityModule.ToggleMapTarget(pathStr)
+    PriorityModule.ActiveMapTargets[pathStr] = not PriorityModule.ActiveMapTargets[pathStr]
+    LockedTarget = nil
+    return PriorityModule.ActiveMapTargets[pathStr]
+end
+
 function PriorityModule.GetPrimaryTarget(targetPriorityMode, getRootFunc)
+    -- 1. Check for Active Map Target Overrides First
+    for pathStr, enabled in pairs(PriorityModule.ActiveMapTargets) do
+        if enabled then
+            local mapModel = resolvePath(pathStr)
+            if isTargetAlive(mapModel) then
+                LockedTarget = mapModel
+                return LockedTarget
+            end
+        end
+    end
+
+    -- 2. Fall back to standard folder priorities
     local tiers = {}
     if targetPriorityMode == "Mega Bosses" then
         tiers = {"CurrentMegaBosses", "CurrentBosses", "CurrentEnemies"}
@@ -160,7 +203,6 @@ function PriorityModule.GetPrimaryTarget(targetPriorityMode, getRootFunc)
                 local currentRank = getInternalRank(folderName, LockedTarget.Name)
                 local bestRank = getInternalRank(folderName, bestInFolder.Name)
                 
-                -- Preempt current lock if a higher internal rank target spawns
                 if bestRank < currentRank then
                     LockedTarget = bestInFolder
                     return LockedTarget
