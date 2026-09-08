@@ -15,8 +15,8 @@ PriorityModule.MOB_FOLDERS = {
 -- ============================================================================
 PriorityModule.MAP_TARGETS = {
     "workspace.Map.SpringWrathCastle.HealthDoor",
-    -- "workspace.Map.Zone1.WoodenDoor",
-    -- "workspace.Map.Dungeon.BossGate",
+    "workspace.Map.SpringWrathCastle.HealthDoor2",
+    "workspace.Map.SpringWrathCastle.HealthDoor3",
 }
 -- ============================================================================
 
