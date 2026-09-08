@@ -1,4 +1,4 @@
--- [[ SoulNoob Main Script - Modular Engine v1.26 ]] --
+-- [[ SoulNoob Main Script - Modular Engine v1.31 ]] --
 
 local ALL_LIMBS = {
     "Torso", "Head", "Left Arm", "Right Arm", "Left Leg", "Right Leg",
@@ -16,7 +16,7 @@ local UIS = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
--- Module Registry (Update URLs to point to your raw github files)
+-- Module Registry
 local MODULE_URLS = {
     Priority    = "https://raw.githubusercontent.com/ef0a/bpsc/refs/heads/main/priority.luau",
     Orbit       = "https://raw.githubusercontent.com/ef0a/bpsc/refs/heads/main/orbit.luau",
@@ -35,21 +35,21 @@ local PriorityMod = Modules.Priority
 local _G = {
     HitboxEnabled = false, HitboxTargetMode = "Head", TPEnabled = false,
     TargetCFrame = nil, Mode = "Normal", Size = 20, Transparency = 0.94, Bind = "J",
-    TargetPriority = "Mega Bosses" -- Options: "Mega Bosses", "Bosses", "Enemies", "Closest"
+    TargetPriority = "Mega Bosses"
 }
 local Connections = {}
 
 -- GUI Setup
 local ScreenGui = Instance.new("ScreenGui", PlayerGui)
-ScreenGui.Name = "SoulNoob_v126" ScreenGui.ResetOnSpawn = false ScreenGui.DisplayOrder = 999999999
+ScreenGui.Name = "SoulNoob_v131" ScreenGui.ResetOnSpawn = false ScreenGui.DisplayOrder = 999999999
 
 local Main = Instance.new("Frame", ScreenGui)
-Main.Size = UDim2.new(0, 240, 0, 450) Main.Position = UDim2.new(0.05, 0, 0.2, 0)
+Main.Size = UDim2.new(0, 250, 0, 450) Main.Position = UDim2.new(0.05, 0, 0.2, 0)
 Main.BackgroundColor3 = Color3.fromRGB(25, 25, 25) Main.BorderSizePixel = 2 Main.BorderColor3 = Color3.fromRGB(0, 255, 150)
 Main.Active = true Main.Draggable = true
 
 local Title = Instance.new("TextLabel", Main)
-Title.Size = UDim2.new(1, -30, 0, 35) Title.Text = " SoulNoob v1.26" Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Size = UDim2.new(1, -30, 0, 35) Title.Text = " SoulNoob v1.31" Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.BackgroundColor3 = Color3.fromRGB(40, 40, 40) Title.TextColor3 = Color3.new(1, 1, 1)
 
 local CloseBtn = Instance.new("TextButton", Main)
@@ -57,7 +57,7 @@ CloseBtn.Size = UDim2.new(0, 30, 0, 35) CloseBtn.Position = UDim2.new(1, -30, 0,
 CloseBtn.Text = "X" CloseBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40) CloseBtn.TextColor3 = Color3.new(1, 1, 1)
 CloseBtn.Font = Enum.Font.SourceSansBold CloseBtn.BorderSizePixel = 0
 
--- Dynamic Tab System (4-Tab Layout)
+-- Dynamic Tab System (5-Tab Layout)
 local TabBar = Instance.new("Frame", Main)
 TabBar.Size = UDim2.new(1, 0, 0, 30) TabBar.Position = UDim2.new(0, 0, 0, 35) TabBar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 
@@ -81,10 +81,11 @@ local function createTab(name, w, pos)
     return frame
 end
 
-local MainTabFrame    = createTab("Main",    0.25, 0)
-local OrbitTabFrame   = createTab("Orbit",   0.25, 0.25)
-local ABTabFrame      = createTab("AB",      0.25, 0.50)
-local ClickerTabFrame = createTab("Clicker", 0.25, 0.75)
+local MainTabFrame    = createTab("Main",    0.20, 0)
+local PrioTabFrame    = createTab("Prio",    0.20, 0.20)
+local OrbitTabFrame   = createTab("Orbit",   0.20, 0.40)
+local ABTabFrame      = createTab("AB",      0.20, 0.60)
+local ClickerTabFrame = createTab("Clicker", 0.20, 0.80)
 
 TabFrames["Main"].Visible = true
 TabButtons["Main"].BackgroundColor3 = Color3.fromRGB(0, 255, 150)
@@ -108,15 +109,38 @@ local function createTBox(parent, pos, placeholder, defaultText)
 end
 
 -- Main Controls
-local PriorityBtn = createBtn(MainTabFrame, 10, "Priority: MEGA BOSSES", Color3.fromRGB(200, 0, 100))
-local ModeBtn     = createBtn(MainTabFrame, 47, "Target Parts: HEAD", Color3.fromRGB(0, 150, 100))
-local NormalBtn   = createBtn(MainTabFrame, 84, "Hitbox: Normal", Color3.fromRGB(0, 120, 200))
-local FreezeBtn   = createBtn(MainTabFrame, 121, "Hitbox: Stun (Freeze)", Color3.fromRGB(150, 0, 0))
-local TPBtn       = createBtn(MainTabFrame, 158, "SET KILL ZONE: OFF", Color3.fromRGB(150, 0, 150))
-local SizeBox     = createTBox(MainTabFrame, Vector2.new(0.05, 202), "Hitbox Size", "Size: ".._G.Size)
-local TransBox    = createTBox(MainTabFrame, Vector2.new(0.53, 202), "Transparency", "Trans: ".._G.Transparency)
-local BindBox     = createTBox(MainTabFrame, Vector2.new(0.05, 237), "Bind", "Bind: ".._G.Bind)
+local ModeBtn     = createBtn(MainTabFrame, 10, "Target Parts: HEAD", Color3.fromRGB(0, 150, 100))
+local NormalBtn   = createBtn(MainTabFrame, 47, "Hitbox: Normal", Color3.fromRGB(0, 120, 200))
+local FreezeBtn   = createBtn(MainTabFrame, 84, "Hitbox: Stun (Freeze)", Color3.fromRGB(150, 0, 0))
+local TPBtn       = createBtn(MainTabFrame, 121, "SET KILL ZONE: OFF", Color3.fromRGB(150, 0, 150))
+local SizeBox     = createTBox(MainTabFrame, Vector2.new(0.05, 165), "Hitbox Size", "Size: ".._G.Size)
+local TransBox    = createTBox(MainTabFrame, Vector2.new(0.53, 165), "Transparency", "Trans: ".._G.Transparency)
+local BindBox     = createTBox(MainTabFrame, Vector2.new(0.05, 200), "Bind", "Bind: ".._G.Bind)
 local OffBtn      = createBtn(MainTabFrame, 310, "RESET / ALL OFF", Color3.fromRGB(70, 70, 70))
+
+-- Priority Controls (Dedicated Prio Tab)
+local PriorityBtn = createBtn(PrioTabFrame, 10, "Priority: MEGA BOSSES", Color3.fromRGB(200, 0, 100))
+
+-- Dynamic Map Target Buttons Builder
+local mapYOffset = 60
+if PriorityMod and PriorityMod.MAP_TARGETS then
+    for _, pathStr in ipairs(PriorityMod.MAP_TARGETS) do
+        local targetName = pathStr:match("[^%.]+$") or pathStr
+        local mapBtn = createBtn(PrioTabFrame, mapYOffset, "Map: " .. targetName .. " [OFF]", Color3.fromRGB(100, 40, 40))
+        
+        mapBtn.MouseButton1Click:Connect(function()
+            local newState = PriorityMod.ToggleMapTarget(pathStr)
+            if newState then
+                mapBtn.Text = "Map: " .. targetName .. " [OVERRIDE ON]"
+                mapBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
+            else
+                mapBtn.Text = "Map: " .. targetName .. " [OFF]"
+                mapBtn.BackgroundColor3 = Color3.fromRGB(100, 40, 40)
+            end
+        end)
+        mapYOffset = mapYOffset + 37
+    end
+end
 
 -- Helper Functions
 local function getRoot() return LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") end
@@ -162,16 +186,18 @@ local function applyEffects(model)
     if not model or model == LocalPlayer.Character then return end
     local hum = model:FindFirstChildOfClass("Humanoid")
     if not hum or hum.Health <= 0 then return end
-    local root = model:FindFirstChild("HumanoidRootPart")
+    local root = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChildWhichIsA("BasePart")
 
     if _G.HitboxEnabled then
         local partsToExpand = {}
         if _G.HitboxTargetMode == "Head" then
-            local head = model:FindFirstChild("Head") if head then table.insert(partsToExpand, head) end
+            local head = model:FindFirstChild("Head") or root
+            if head then table.insert(partsToExpand, head) end
         else
             for _, limbName in ipairs(ALL_LIMBS) do
                 local p = model:FindFirstChild(limbName) if p and p:IsA("BasePart") then table.insert(partsToExpand, p) end
             end
+            if #partsToExpand == 0 and root then table.insert(partsToExpand, root) end
         end
 
         for _, p in ipairs(partsToExpand) do
