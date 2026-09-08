@@ -1,4 +1,4 @@
--- [[ SoulNoob Main Script - Modular Priority Engine v1.25 ]] --
+-- [[ SoulNoob Main Script - Modular Engine v1.26 ]] --
 
 local ALL_LIMBS = {
     "Torso", "Head", "Left Arm", "Right Arm", "Left Leg", "Right Leg",
@@ -16,11 +16,12 @@ local UIS = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
--- Module Registry (Update Priority URL to your raw github link)
+-- Module Registry (Update URLs to point to your raw github files)
 local MODULE_URLS = {
-    Priority = "https://raw.githubusercontent.com/ef0a/bpsc/refs/heads/main/priority.luau",
-    Orbit    = "https://raw.githubusercontent.com/ef0a/bpsc/refs/heads/main/orbit.luau",
-    Aimbot   = "https://raw.githubusercontent.com/ef0a/bpsc/refs/heads/main/aimbot.luau",
+    Priority    = "https://raw.githubusercontent.com/ef0a/bpsc/refs/heads/main/priority.luau",
+    Orbit       = "https://raw.githubusercontent.com/ef0a/bpsc/refs/heads/main/orbit.luau",
+    Aimbot      = "https://raw.githubusercontent.com/ef0a/bpsc/refs/heads/main/aimbot.luau",
+    AutoClicker = "https://raw.githubusercontent.com/ef0a/bpsc/refs/heads/main/autoclicker.luau",
 }
 
 local Modules = {}
@@ -40,15 +41,15 @@ local Connections = {}
 
 -- GUI Setup
 local ScreenGui = Instance.new("ScreenGui", PlayerGui)
-ScreenGui.Name = "SoulNoob_v125" ScreenGui.ResetOnSpawn = false ScreenGui.DisplayOrder = 999999999
+ScreenGui.Name = "SoulNoob_v126" ScreenGui.ResetOnSpawn = false ScreenGui.DisplayOrder = 999999999
 
 local Main = Instance.new("Frame", ScreenGui)
-Main.Size = UDim2.new(0, 230, 0, 450) Main.Position = UDim2.new(0.05, 0, 0.2, 0)
+Main.Size = UDim2.new(0, 240, 0, 450) Main.Position = UDim2.new(0.05, 0, 0.2, 0)
 Main.BackgroundColor3 = Color3.fromRGB(25, 25, 25) Main.BorderSizePixel = 2 Main.BorderColor3 = Color3.fromRGB(0, 255, 150)
 Main.Active = true Main.Draggable = true
 
 local Title = Instance.new("TextLabel", Main)
-Title.Size = UDim2.new(1, -30, 0, 35) Title.Text = " SoulNoob v1.25" Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Size = UDim2.new(1, -30, 0, 35) Title.Text = " SoulNoob v1.26" Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.BackgroundColor3 = Color3.fromRGB(40, 40, 40) Title.TextColor3 = Color3.new(1, 1, 1)
 
 local CloseBtn = Instance.new("TextButton", Main)
@@ -56,7 +57,7 @@ CloseBtn.Size = UDim2.new(0, 30, 0, 35) CloseBtn.Position = UDim2.new(1, -30, 0,
 CloseBtn.Text = "X" CloseBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40) CloseBtn.TextColor3 = Color3.new(1, 1, 1)
 CloseBtn.Font = Enum.Font.SourceSansBold CloseBtn.BorderSizePixel = 0
 
--- Dynamic Tab System
+-- Dynamic Tab System (4-Tab Layout)
 local TabBar = Instance.new("Frame", Main)
 TabBar.Size = UDim2.new(1, 0, 0, 30) TabBar.Position = UDim2.new(0, 0, 0, 35) TabBar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 
@@ -80,9 +81,11 @@ local function createTab(name, w, pos)
     return frame
 end
 
-local MainTabFrame  = createTab("Main",  0.333, 0)
-local OrbitTabFrame = createTab("Orbit", 0.333, 0.333)
-local ABTabFrame    = createTab("AB",    0.334, 0.666)
+local MainTabFrame    = createTab("Main",    0.25, 0)
+local OrbitTabFrame   = createTab("Orbit",   0.25, 0.25)
+local ABTabFrame      = createTab("AB",      0.25, 0.50)
+local ClickerTabFrame = createTab("Clicker", 0.25, 0.75)
+
 TabFrames["Main"].Visible = true
 TabButtons["Main"].BackgroundColor3 = Color3.fromRGB(0, 255, 150)
 TabButtons["Main"].TextColor3 = Color3.fromRGB(20, 20, 20)
@@ -230,6 +233,7 @@ BindBox.FocusLost:Connect(function() local k = BindBox.Text:gsub("Bind: ", ""):u
 local HeartbeatSteps, RenderSteppedSteps = {}, {}
 if Modules.Orbit and Modules.Orbit.Init then table.insert(HeartbeatSteps, Modules.Orbit.Init(OrbitTabFrame, createBtn, createTBox, getRoot, getPrimaryTarget)) end
 if Modules.Aimbot and Modules.Aimbot.Init then table.insert(RenderSteppedSteps, Modules.Aimbot.Init(ABTabFrame, createBtn, createTBox, getRoot, getPrimaryTarget)) end
+if Modules.AutoClicker and Modules.AutoClicker.Init then table.insert(HeartbeatSteps, Modules.AutoClicker.Init(ClickerTabFrame, createBtn, createTBox)) end
 
 CloseBtn.MouseButton1Click:Connect(function()
     resetAll()
