@@ -1,4 +1,4 @@
--- [[ SoulNoob AutoClicker Module - v1.36 ]] --
+-- [[ SoulNoob AutoClicker Module - v1.37 ]] --
 
 local AutoClickerModule = {}
 
@@ -9,7 +9,7 @@ local Workspace = game:GetService("Workspace")
 
 local CurrentCamera = Workspace.CurrentCamera
 
--- Base screen size & ratios from prototype capture
+-- Base screen size & ratios
 local BASE_WIDTH = 1800
 local BASE_HEIGHT = 1014
 local TARGET_X = 486 + (216 / 2) -- Center X: 594
@@ -22,13 +22,15 @@ local RATIO_Y = TARGET_Y / BASE_HEIGHT  -- ~0.4916
 local State = {
     M1Enabled = false,
     M1AutoStandby = false,
-    LobbyClickEnabled = false, -- New v1.36 feature
-    LobbyClickDelay = 3.0,     -- Prototype interval (3s)
+    LobbyClickEnabled = false,
+    LobbyClickDelay = 3.0,
     ZEnabled = false,
     XEnabled = false,
+    NEnabled = false, -- New v1.37 feature
     M1Delay = 0.1,
     ZDelay = 1.0,
     XDelay = 1.0,
+    NDelay = 5.0,     -- Default 5s delay for N key
     M1Bind = "=",
     
     -- Standby State Tracker
@@ -42,6 +44,7 @@ local LastPressed = {
     Lobby = 0,
     Z = 0,
     X = 0,
+    N = 0,
 }
 
 local Connections = {}
@@ -93,6 +96,10 @@ function AutoClickerModule.Init(tabFrame, createBtn, createTBox, getRoot, getPri
     local XBtn           = createBtn(tabFrame, 232, "Auto Skill (X): OFF", Color3.fromRGB(150, 0, 0))
     local XBox           = createTBox(tabFrame, Vector2.new(0.05, 269), "X Delay (s)", "X Delay: " .. State.XDelay)
 
+    -- New v1.37 UI Controls for 'N' Key
+    local NBtn           = createBtn(tabFrame, 306, "Auto Skill (N): OFF", Color3.fromRGB(150, 0, 0))
+    local NBox           = createTBox(tabFrame, Vector2.new(0.05, 343), "N Delay (s)", "N Delay: " .. State.NDelay)
+
     local function toggleM1()
         State.M1Enabled = not State.M1Enabled
         if State.M1Enabled then
@@ -132,6 +139,12 @@ function AutoClickerModule.Init(tabFrame, createBtn, createTBox, getRoot, getPri
         XBtn.BackgroundColor3 = State.XEnabled and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(150, 0, 0)
     end)
 
+    NBtn.MouseButton1Click:Connect(function()
+        State.NEnabled = not State.NEnabled
+        NBtn.Text = "Auto Skill (N): " .. (State.NEnabled and "ON" or "OFF")
+        NBtn.BackgroundColor3 = State.NEnabled and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(150, 0, 0)
+    end)
+
     -- Keybind Listener
     table.insert(Connections, UIS.InputBegan:Connect(function(input, processed)
         if processed then return end
@@ -165,6 +178,11 @@ function AutoClickerModule.Init(tabFrame, createBtn, createTBox, getRoot, getPri
     XBox.FocusLost:Connect(function()
         local val = tonumber(XBox.Text:match("%d+%.?%d*"))
         if val then State.XDelay, XBox.Text = math.max(0.05, val), "X Delay: " .. math.max(0.05, val) end
+    end)
+
+    NBox.FocusLost:Connect(function()
+        local val = tonumber(NBox.Text:match("%d+%.?%d*"))
+        if val then State.NDelay, NBox.Text = math.max(0.1, val), "N Delay: " .. math.max(0.1, val) end
     end)
 
     -- Heartbeat Step Loop
@@ -202,12 +220,11 @@ function AutoClickerModule.Init(tabFrame, createBtn, createTBox, getRoot, getPri
                     else
                         M1Btn.Text = "M1: STANDBY (PAUSED)"
                         M1Btn.BackgroundColor3 = Color3.fromRGB(120, 80, 0)
-                        shouldClickM1 = false -- Buffer expired, pause standard M1 clicking
+                        shouldClickM1 = false
                         bufferExpired = true
                     end
                 end
             else
-                -- Target active: reset standby state
                 State.InStandby = false
                 if M1Btn.Text ~= "Auto Click (M1): ON" then
                     M1Btn.Text = "Auto Click (M1): ON"
@@ -222,7 +239,7 @@ function AutoClickerModule.Init(tabFrame, createBtn, createTBox, getRoot, getPri
             clickM1()
         end
 
-        -- Execute Lobby Position Clicks when in Standby and Buffer Expired
+        -- Execute Lobby Position Clicks
         if State.LobbyClickEnabled and bufferExpired then
             if now - LastPressed.Lobby >= State.LobbyClickDelay then
                 LastPressed.Lobby = now
@@ -233,7 +250,7 @@ function AutoClickerModule.Init(tabFrame, createBtn, createTBox, getRoot, getPri
             end
         end
 
-        -- Skill key clickers remain independent
+        -- Skill key clickers
         if State.ZEnabled and (now - LastPressed.Z >= State.ZDelay) then
             LastPressed.Z = now
             pressKey(Enum.KeyCode.Z)
@@ -242,6 +259,12 @@ function AutoClickerModule.Init(tabFrame, createBtn, createTBox, getRoot, getPri
         if State.XEnabled and (now - LastPressed.X >= State.XDelay) then
             LastPressed.X = now
             pressKey(Enum.KeyCode.X)
+        end
+
+        -- Auto Skill (N) Loop
+        if State.NEnabled and (now - LastPressed.N >= State.NDelay) then
+            LastPressed.N = now
+            pressKey(Enum.KeyCode.N)
         end
     end
 end
@@ -253,6 +276,7 @@ function AutoClickerModule.Cleanup()
     State.InStandby = false
     State.ZEnabled = false
     State.XEnabled = false
+    State.NEnabled = false
     for _, conn in ipairs(Connections) do conn:Disconnect() end
 end
 
