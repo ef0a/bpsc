@@ -16,7 +16,7 @@ local _state = {
     TargetPart = "Head"
 }
 
-function ABModule.Init(ABTabFrame, createBtn, createTBox, getRoot, getPrimaryTarget)
+function ABModule.Init(ABTabFrame, createBtn, createTBox, getRoot, getPrimaryTarget, getAllMobs)
     -- Build UI inside the passed ABTabFrame
     local ABToggleBtn    = createBtn(ABTabFrame, 10, "AB (Aimbot): OFF", Color3.fromRGB(100, 100, 100))
     local PartBtn        = createBtn(ABTabFrame, 47, "Target: HEAD", Color3.fromRGB(0, 150, 100))
@@ -58,19 +58,31 @@ function ABModule.Init(ABTabFrame, createBtn, createTBox, getRoot, getPrimaryTar
     return function()
         if not _state.Enabled then return end
 
+        -- 1. Try primary target matching current priority
         local targetMob = getPrimaryTarget()
 
-        -- No target present
+        -- 2. Fallback: If no priority target exists, check across ALL enemy folders (Enemies, Bosses, MegaBosses)
+        if not targetMob and getAllMobs then
+            local allMobs = getAllMobs()
+            for _, mob in ipairs(allMobs) do
+                local hum = mob:FindFirstChildOfClass("Humanoid")
+                if hum and hum.Health > 0 then
+                    targetMob = mob
+                    break
+                end
+            end
+        end
+
+        -- 3. If zero mobs exist anywhere, trigger standby and release camera lock
         if not targetMob then
             if _state.AutoMode then
-                -- Show standby status, but leave Enabled = true so target checks continue
                 ABToggleBtn.Text = "AB: WAITING..."
                 ABToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 120, 0)
             end
-            return -- Free camera and mouse control
+            return
         end
 
-        -- Target found: update button label back to active lock
+        -- Resume active status when target is found
         if _state.AutoMode and ABToggleBtn.Text ~= "AB (Aimbot): ON" then
             ABToggleBtn.Text = "AB (Aimbot): ON"
             ABToggleBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
@@ -79,12 +91,11 @@ function ABModule.Init(ABTabFrame, createBtn, createTBox, getRoot, getPrimaryTar
         local targetPart = targetMob:FindFirstChild(_state.TargetPart) or targetMob:FindFirstChild("HumanoidRootPart")
         if not targetPart then return end
 
-        -- Calculate CFrame pointing from camera directly to target
+        -- Interpolate camera position
         local camPos = CurrentCamera.CFrame.Position
         local targetPos = targetPart.Position
         local targetCFrame = CFrame.new(camPos, targetPos)
 
-        -- Interpolate camera orientation smoothly toward target
         if _state.Smoothness >= 1 then
             CurrentCamera.CFrame = targetCFrame
         else
