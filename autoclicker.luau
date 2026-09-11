@@ -1,4 +1,4 @@
--- [[ SoulNoob AutoClicker Module - v1.1 ]] --
+-- [[ SoulNoob AutoClicker Module - v1.35 ]] --
 
 local AutoClickerModule = {}
 
@@ -9,12 +9,18 @@ local UIS = game:GetService("UserInputService")
 -- Module State
 local State = {
     M1Enabled = false,
+    M1AutoStandby = false, -- New v1.35 Auto-Standby feature
     ZEnabled = false,
     XEnabled = false,
     M1Delay = 0.1,
     ZDelay = 1.0,
     XDelay = 1.0,
-    M1Bind = "="
+    M1Bind = "=",
+    
+    -- Standby State Tracker
+    StandbyDelay = 7,
+    InStandby = false,
+    StandbyStartTime = 0
 }
 
 local LastPressed = {
@@ -49,26 +55,40 @@ local function pressKey(keyCode)
 end
 
 -- Module Init
-function AutoClickerModule.Init(tabFrame, createBtn, createTBox)
+function AutoClickerModule.Init(tabFrame, createBtn, createTBox, getRoot, getPrimaryTarget, getAllMobs)
     -- UI Elements Setup
-    local M1Btn  = createBtn(tabFrame, 10, "Auto Click (M1): OFF", Color3.fromRGB(150, 0, 0))
-    local M1Box  = createTBox(tabFrame, Vector2.new(0.05, 47), "M1 Delay (s)", "M1 Delay: " .. State.M1Delay)
-    local BindBox = createTBox(tabFrame, Vector2.new(0.53, 47), "M1 Bind", "Bind: " .. State.M1Bind)
+    local M1Btn       = createBtn(tabFrame, 10, "Auto Click (M1): OFF", Color3.fromRGB(150, 0, 0))
+    local M1StandbyBtn= createBtn(tabFrame, 47, "M1 Auto-Standby: OFF", Color3.fromRGB(100, 40, 40))
+    
+    local M1Box       = createTBox(tabFrame, Vector2.new(0.05, 84), "M1 Delay (s)", "M1 Delay: " .. State.M1Delay)
+    local BindBox     = createTBox(tabFrame, Vector2.new(0.53, 84), "M1 Bind", "Bind: " .. State.M1Bind)
 
-    local ZBtn   = createBtn(tabFrame, 84, "Auto Skill (Z): OFF", Color3.fromRGB(150, 0, 0))
-    local ZBox   = createTBox(tabFrame, Vector2.new(0.05, 121), "Z Delay (s)", "Z Delay: " .. State.ZDelay)
+    local ZBtn        = createBtn(tabFrame, 121, "Auto Skill (Z): OFF", Color3.fromRGB(150, 0, 0))
+    local ZBox        = createTBox(tabFrame, Vector2.new(0.05, 158), "Z Delay (s)", "Z Delay: " .. State.ZDelay)
 
-    local XBtn   = createBtn(tabFrame, 158, "Auto Skill (X): OFF", Color3.fromRGB(150, 0, 0))
-    local XBox   = createTBox(tabFrame, Vector2.new(0.05, 195), "X Delay (s)", "X Delay: " .. State.XDelay)
+    local XBtn        = createBtn(tabFrame, 195, "Auto Skill (X): OFF", Color3.fromRGB(150, 0, 0))
+    local XBox        = createTBox(tabFrame, Vector2.new(0.05, 232), "X Delay (s)", "X Delay: " .. State.XDelay)
 
     local function toggleM1()
         State.M1Enabled = not State.M1Enabled
-        M1Btn.Text = "Auto Click (M1): " .. (State.M1Enabled and "ON" or "OFF")
-        M1Btn.BackgroundColor3 = State.M1Enabled and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(150, 0, 0)
+        if State.M1Enabled then
+            M1Btn.Text = "Auto Click (M1): ON"
+            M1Btn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
+        else
+            M1Btn.Text = "Auto Click (M1): OFF"
+            M1Btn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+            State.InStandby = false
+        end
     end
 
     -- Button Connections
     M1Btn.MouseButton1Click:Connect(toggleM1)
+
+    M1StandbyBtn.MouseButton1Click:Connect(function()
+        State.M1AutoStandby = not State.M1AutoStandby
+        M1StandbyBtn.Text = "M1 Auto-Standby: " .. (State.M1AutoStandby and "ON" or "OFF")
+        M1StandbyBtn.BackgroundColor3 = State.M1AutoStandby and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(100, 40, 40)
+    end)
 
     ZBtn.MouseButton1Click:Connect(function()
         State.ZEnabled = not State.ZEnabled
@@ -121,11 +141,56 @@ function AutoClickerModule.Init(tabFrame, createBtn, createTBox)
     return function()
         local now = tick()
 
-        if State.M1Enabled and (now - LastPressed.M1 >= State.M1Delay) then
+        -- Check for active mobs if M1 and Auto-Standby are active
+        local shouldClickM1 = State.M1Enabled
+
+        if State.M1Enabled and State.M1AutoStandby then
+            local targetMob = getPrimaryTarget and getPrimaryTarget()
+            if not targetMob and getAllMobs then
+                local allMobs = getAllMobs()
+                for _, mob in ipairs(allMobs) do
+                    local hum = mob:FindFirstChildOfClass("Humanoid")
+                    if hum and hum.Health > 0 then
+                        targetMob = mob
+                        break
+                    end
+                end
+            end
+
+            if not targetMob then
+                if not State.InStandby then
+                    State.InStandby = true
+                    State.StandbyStartTime = now
+                else
+                    local elapsed = now - State.StandbyStartTime
+                    local remaining = math.ceil(State.StandbyDelay - elapsed)
+
+                    if remaining > 0 then
+                        M1Btn.Text = "M1: WAITING (" .. remaining .. "s)"
+                        M1Btn.BackgroundColor3 = Color3.fromRGB(180, 120, 0)
+                    else
+                        M1Btn.Text = "M1: STANDBY (PAUSED)"
+                        M1Btn.BackgroundColor3 = Color3.fromRGB(120, 80, 0)
+                        shouldClickM1 = false -- Buffer expired, pause M1 clicking
+                    end
+                end
+            else
+                -- Target active: reset standby state
+                State.InStandby = false
+                if M1Btn.Text ~= "Auto Click (M1): ON" then
+                    M1Btn.Text = "Auto Click (M1): ON"
+                    M1Btn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
+                end
+            end
+        end
+
+        -- Execute M1 Clicks
+        if shouldClickM1 and (now - LastPressed.M1 >= State.M1Delay) then
             LastPressed.M1 = now
             clickM1()
         end
 
+        -- Skill key clickers remain independent
         if State.ZEnabled and (now - LastPressed.Z >= State.ZDelay) then
             LastPressed.Z = now
             pressKey(Enum.KeyCode.Z)
@@ -140,6 +205,8 @@ end
 
 function AutoClickerModule.Cleanup()
     State.M1Enabled = false
+    State.M1AutoStandby = false
+    State.InStandby = false
     State.ZEnabled = false
     State.XEnabled = false
     for _, conn in ipairs(Connections) do conn:Disconnect() end
