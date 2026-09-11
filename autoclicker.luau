@@ -1,4 +1,4 @@
--- [[ SoulNoob AutoClicker Module - v1.37 ]] --
+-- [[ SoulNoob AutoClicker Module - v1.38 ]] --
 
 local AutoClickerModule = {}
 
@@ -6,6 +6,7 @@ local AutoClickerModule = {}
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local UIS = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local CurrentCamera = Workspace.CurrentCamera
 
@@ -26,11 +27,13 @@ local State = {
     LobbyClickDelay = 3.0,
     ZEnabled = false,
     XEnabled = false,
-    NEnabled = false, -- New v1.37 feature
+    NEnabled = false,
+    AutoSkipEnabled = false, -- New v1.38 feature
     M1Delay = 0.1,
     ZDelay = 1.0,
     XDelay = 1.0,
-    NDelay = 5.0,     -- Default 5s delay for N key
+    NDelay = 5.0,
+    AutoSkipDelay = 4.0,     -- 4s interval for remote firing
     M1Bind = "=",
     
     -- Standby State Tracker
@@ -45,9 +48,23 @@ local LastPressed = {
     Z = 0,
     X = 0,
     N = 0,
+    AutoSkip = 0,
 }
 
 local Connections = {}
+
+-- Helper to safely fire the Vote/Skip Remote
+local function fireSkipRemote()
+    pcall(function()
+        local voteEvents = ReplicatedStorage:FindFirstChild("VoteEvents")
+        if voteEvents then
+            local submitVote = voteEvents:FindFirstChild("SubmitVote")
+            if submitVote and submitVote:IsA("RemoteEvent") then
+                submitVote:FireServer(true)
+            end
+        end
+    end)
+end
 
 -- Input Helpers
 local function clickM1()
@@ -96,9 +113,11 @@ function AutoClickerModule.Init(tabFrame, createBtn, createTBox, getRoot, getPri
     local XBtn           = createBtn(tabFrame, 232, "Auto Skill (X): OFF", Color3.fromRGB(150, 0, 0))
     local XBox           = createTBox(tabFrame, Vector2.new(0.05, 269), "X Delay (s)", "X Delay: " .. State.XDelay)
 
-    -- New v1.37 UI Controls for 'N' Key
     local NBtn           = createBtn(tabFrame, 306, "Auto Skill (N): OFF", Color3.fromRGB(150, 0, 0))
     local NBox           = createTBox(tabFrame, Vector2.new(0.05, 343), "N Delay (s)", "N Delay: " .. State.NDelay)
+
+    -- New v1.38 Controls: Auto Skip Cutscenes
+    local SkipBtn        = createBtn(tabFrame, 380, "Auto Skip Cutscene: OFF", Color3.fromRGB(150, 0, 0))
 
     local function toggleM1()
         State.M1Enabled = not State.M1Enabled
@@ -143,6 +162,12 @@ function AutoClickerModule.Init(tabFrame, createBtn, createTBox, getRoot, getPri
         State.NEnabled = not State.NEnabled
         NBtn.Text = "Auto Skill (N): " .. (State.NEnabled and "ON" or "OFF")
         NBtn.BackgroundColor3 = State.NEnabled and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(150, 0, 0)
+    end)
+
+    SkipBtn.MouseButton1Click:Connect(function()
+        State.AutoSkipEnabled = not State.AutoSkipEnabled
+        SkipBtn.Text = "Auto Skip Cutscene: " .. (State.AutoSkipEnabled and "ON" or "OFF")
+        SkipBtn.BackgroundColor3 = State.AutoSkipEnabled and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(150, 0, 0)
     end)
 
     -- Keybind Listener
@@ -266,6 +291,12 @@ function AutoClickerModule.Init(tabFrame, createBtn, createTBox, getRoot, getPri
             LastPressed.N = now
             pressKey(Enum.KeyCode.N)
         end
+
+        -- Auto Skip Remote Loop (Every 4 seconds)
+        if State.AutoSkipEnabled and (now - LastPressed.AutoSkip >= State.AutoSkipDelay) then
+            LastPressed.AutoSkip = now
+            fireSkipRemote()
+        end
     end
 end
 
@@ -277,6 +308,7 @@ function AutoClickerModule.Cleanup()
     State.ZEnabled = false
     State.XEnabled = false
     State.NEnabled = false
+    State.AutoSkipEnabled = false
     for _, conn in ipairs(Connections) do conn:Disconnect() end
 end
 
