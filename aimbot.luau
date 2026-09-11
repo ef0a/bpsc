@@ -1,9 +1,10 @@
--- [[ AB (Aimbot) Module - SoulNoob Component v1.33 ]] --
+-- [[ AB (Aimbot) Module - SoulNoob Component v1.34 ]] --
 local ABModule = {}
 
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local LocalPlayer = Players.LocalPlayer
 local CurrentCamera = Workspace.CurrentCamera
@@ -11,10 +12,38 @@ local CurrentCamera = Workspace.CurrentCamera
 -- Internal Module State
 local _state = {
     Enabled = false,
-    AutoMode = false, -- Standby when no mobs exist; re-engages when mobs appear
-    Smoothness = 0.5, -- 1 = Instant Snap, Lower = Smoother
-    TargetPart = "Head"
+    AutoMode = false,
+    Smoothness = 0.5,
+    TargetPart = "Head",
+    
+    -- v1.34 State Additions
+    StandbyDelay = 7,     -- Seconds to wait before zooming out (5-10s range)
+    InStandby = false,
+    StandbyStartTime = 0,
+    IsZoomedIn = false
 }
+
+-- Virtual Key Helper for Camera Zoom
+local function triggerKey(keyCode, amount)
+    task.spawn(function()
+        for i = 1, (amount or 6) do
+            VirtualInputManager:SendKeyEvent(true, keyCode, false, game)
+            task.wait(0.02)
+            VirtualInputManager:SendKeyEvent(false, keyCode, false, game)
+            task.wait(0.02)
+        end
+    end)
+end
+
+local function zoomIn()
+    triggerKey(Enum.KeyCode.I, 8)
+    _state.IsZoomedIn = true
+end
+
+local function zoomOut()
+    triggerKey(Enum.KeyCode.O, 8)
+    _state.IsZoomedIn = false
+end
 
 function ABModule.Init(ABTabFrame, createBtn, createTBox, getRoot, getPrimaryTarget, getAllMobs)
     -- Build UI inside the passed ABTabFrame
@@ -29,9 +58,12 @@ function ABModule.Init(ABTabFrame, createBtn, createTBox, getRoot, getPrimaryTar
         if _state.Enabled then
             ABToggleBtn.Text = "AB (Aimbot): ON"
             ABToggleBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+            zoomIn() -- Force zoom-in on manual enable
         else
             ABToggleBtn.Text = "AB (Aimbot): OFF"
             ABToggleBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+            _state.InStandby = false
+            if _state.IsZoomedIn then zoomOut() end -- Zoom back out on manual disable
         end
     end)
 
@@ -58,10 +90,10 @@ function ABModule.Init(ABTabFrame, createBtn, createTBox, getRoot, getPrimaryTar
     return function()
         if not _state.Enabled then return end
 
-        -- 1. Try primary target matching current priority
+        -- 1. Check Primary Priority Target
         local targetMob = getPrimaryTarget()
 
-        -- 2. Fallback: If no priority target exists, check across ALL enemy folders (Enemies, Bosses, MegaBosses)
+        -- 2. Check Fallback Across All Enemy Folders
         if not targetMob and getAllMobs then
             local allMobs = getAllMobs()
             for _, mob in ipairs(allMobs) do
@@ -73,16 +105,39 @@ function ABModule.Init(ABTabFrame, createBtn, createTBox, getRoot, getPrimaryTar
             end
         end
 
-        -- 3. If zero mobs exist anywhere, trigger standby and release camera lock
+        -- 3. No enemies present
         if not targetMob then
             if _state.AutoMode then
-                ABToggleBtn.Text = "AB: WAITING..."
-                ABToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 120, 0)
+                if not _state.InStandby then
+                    -- Start buffer timer
+                    _state.InStandby = true
+                    _state.StandbyStartTime = tick()
+                else
+                    local elapsed = tick() - _state.StandbyStartTime
+                    local remaining = math.ceil(_state.StandbyDelay - elapsed)
+
+                    if remaining > 0 then
+                        ABToggleBtn.Text = "AB: WAITING (" .. remaining .. "s)"
+                        ABToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 120, 0)
+                    else
+                        -- Buffer expired! Zoom out to 3rd person
+                        ABToggleBtn.Text = "AB: STANDBY (OUT)"
+                        ABToggleBtn.BackgroundColor3 = Color3.fromRGB(120, 80, 0)
+                        if _state.IsZoomedIn then
+                            zoomOut()
+                        end
+                    end
+                end
             end
-            return
+            return -- Stop camera lock
         end
 
-        -- Resume active status when target is found
+        -- 4. Enemy detected! Reset Standby state & engage camera lock
+        if _state.InStandby or not _state.IsZoomedIn then
+            _state.InStandby = false
+            zoomIn() -- Zoom into 1st person automatically
+        end
+
         if _state.AutoMode and ABToggleBtn.Text ~= "AB (Aimbot): ON" then
             ABToggleBtn.Text = "AB (Aimbot): ON"
             ABToggleBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
@@ -91,7 +146,7 @@ function ABModule.Init(ABTabFrame, createBtn, createTBox, getRoot, getPrimaryTar
         local targetPart = targetMob:FindFirstChild(_state.TargetPart) or targetMob:FindFirstChild("HumanoidRootPart")
         if not targetPart then return end
 
-        -- Interpolate camera position
+        -- Camera Lock Step
         local camPos = CurrentCamera.CFrame.Position
         local targetPos = targetPart.Position
         local targetCFrame = CFrame.new(camPos, targetPos)
@@ -107,6 +162,8 @@ end
 function ABModule.Cleanup()
     _state.Enabled = false
     _state.AutoMode = false
+    _state.InStandby = false
+    _state.IsZoomedIn = false
 end
 
 return ABModule
