@@ -1,4 +1,4 @@
--- [[ SoulNoob Main Script - Modular Engine v1.32 ]] --
+-- [[ SoulNoob Main Script - Modular Engine v1.37 ]] --
 
 local ALL_LIMBS = {
     "Torso", "Head", "Left Arm", "Right Arm", "Left Leg", "Right Leg",
@@ -48,7 +48,7 @@ local AutoRefreshThread = nil
 
 -- GUI Setup
 local ScreenGui = Instance.new("ScreenGui", PlayerGui)
-ScreenGui.Name = "SoulNoob_v132" ScreenGui.ResetOnSpawn = false ScreenGui.DisplayOrder = 999999999
+ScreenGui.Name = "SoulNoob_v135" ScreenGui.ResetOnSpawn = false ScreenGui.DisplayOrder = 999999999
 
 local Main = Instance.new("Frame", ScreenGui)
 Main.Size = UDim2.new(0, 250, 0, 480) Main.Position = UDim2.new(0.05, 0, 0.2, 0)
@@ -56,7 +56,7 @@ Main.BackgroundColor3 = Color3.fromRGB(25, 25, 25) Main.BorderSizePixel = 2 Main
 Main.Active = true Main.Draggable = true
 
 local Title = Instance.new("TextLabel", Main)
-Title.Size = UDim2.new(1, -30, 0, 35) Title.Text = " SoulNoob v1.32" Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Size = UDim2.new(1, -30, 0, 35) Title.Text = " SoulNoob v1.35" Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.BackgroundColor3 = Color3.fromRGB(40, 40, 40) Title.TextColor3 = Color3.new(1, 1, 1)
 
 local CloseBtn = Instance.new("TextButton", Main)
@@ -304,9 +304,16 @@ local function getPrimaryTarget()
     return nil
 end
 
+local function getAllMobs()
+    if PriorityMod and PriorityMod.GetAllMobs then
+        return PriorityMod.GetAllMobs()
+    end
+    return {}
+end
+
 if Modules.Orbit and Modules.Orbit.Init then table.insert(HeartbeatSteps, Modules.Orbit.Init(OrbitTabFrame, createBtn, createTBox, getRoot, getPrimaryTarget)) end
-if Modules.Aimbot and Modules.Aimbot.Init then table.insert(RenderSteppedSteps, Modules.Aimbot.Init(ABTabFrame, createBtn, createTBox, getRoot, getPrimaryTarget)) end
-if Modules.AutoClicker and Modules.AutoClicker.Init then table.insert(HeartbeatSteps, Modules.AutoClicker.Init(ClickerTabFrame, createBtn, createTBox)) end
+if Modules.Aimbot and Modules.Aimbot.Init then table.insert(RenderSteppedSteps, Modules.Aimbot.Init(ABTabFrame, createBtn, createTBox, getRoot, getPrimaryTarget, getAllMobs)) end
+if Modules.AutoClicker and Modules.AutoClicker.Init then table.insert(HeartbeatSteps, Modules.AutoClicker.Init(ClickerTabFrame, createBtn, createTBox, getRoot, getPrimaryTarget, getAllMobs)) end
 
 CloseBtn.MouseButton1Click:Connect(function()
     resetAll()
@@ -320,7 +327,7 @@ end)
 -- Dual Engine Loops
 table.insert(Connections, RunService.Heartbeat:Connect(function()
     pcall(function()
-        local allMobs = PriorityMod and PriorityMod.GetAllMobs and PriorityMod.GetAllMobs() or {}
+        local allMobs = getAllMobs()
         for _, enemy in ipairs(allMobs) do applyEffects(enemy) end
         for _, step in ipairs(HeartbeatSteps) do step() end
     end)
